@@ -20,74 +20,77 @@ export const googleAuth = passport.authenticate("google", {
   prompt: "select_account",
 });
 
-//handle google auth callback
-export const googleCallBack = (req, res, next) => {
-  passport.authenticate(
-    "google",
-    { failureRedirect: "/login" },
-    async (err, user) => {
-      if (err) {
-        console.error("Google OAuth error: ", err);
-        return res.status(500).json({
-          success: false,
-          message: "OAuth authentication failed",
-        });
-      }
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: "Authentication failed",
-        });
-      }
-      try {
-        req.login(user, (err) => {
-          if (err) {
-            console.error("Login error", err);
-            return res.status(500).json({
-              success: false,
-              message: "Failed to log in",
-            });
-          }
+// Helper functions for Google OAuth tokens
 
-          req.session.userId = user.id;
-          req.session.authenticated = true;
+import dotenv from "dotenv";
+dotenv.config();
 
-          const tokenPayload = { id: user.id, email: user.email };
-          const accessToken = generateTokens(tokenPayload);
-          const refreshToken = generateRefreshTokens(tokenPayload);
-
-          req.session.save(() => {
-            // Set http-only cookies for security
-            res.cookie("accessToken", accessToken, {
-              httpOnly: true,
-              secure: process.env.NODE_ENV === "production",
-              sameSite: "lax",
-              maxAge: 24 * 60 * 60 * 1000, // 24 hours
-            });
-            res.cookie("refreshToken", refreshToken, {
-              httpOnly: true,
-              secure: process.env.NODE_ENV === "production",
-              sameSite: "lax",
-              maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            });
-
-            res.json({
-              success: true,
-              user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                role: user.role,
-              },
-              message: "Successfully logged in",
-            });
-          });
-        });
-      } catch (err) {
-        next(err);
-      }
+const generateAccessToken = (user) => {
+  return jwt.sign(
+    {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "1d",
+      audience: "lms-app-users",
+      issuer: "lms-app",
+      subject: String(user.id),
     }
-  )(req, res, next);
+  );
+};
+
+const generateRefreshToken = (user) => {
+  return jwt.sign(
+    {
+      id: user.id,
+      tokenVersion: user.tokenVersion || 0,
+    },
+    process.env.JWT_REFRESH_SECRET,
+    {
+      expiresIn: "7d",
+      audience: "lms-app-users",
+      issuer: "lms-app",
+      subject: String(user.id),
+    }
+  );
+};
+
+export const googleCallBack = async (req, res) => {
+  try {
+    const user = req.user;
+
+    if (!user) {
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_failed`);
+    }
+
+    // Generate tokens
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    // Set HttpOnly cookies
+    res.cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax",
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax",
+    });
+
+    // Redirect to frontend handler
+    return res.redirect(
+      `${process.env.CLIENT_URL}/oauth-redirect?success=true`
+    );
+  } catch (err) {
+    console.error("❌ Error in Google Callback:", err);
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=oauth_internal`);
+  }
 };
 
 export async function Register(req, res, next) {
@@ -378,19 +381,18 @@ export async function logout(req, res) {
     };
 
     // Clear both access and refresh token cookies
-   res.clearCookie("accessToken", {
-     path: "/", // Must match cookie settings
-     httpOnly: true,
-     secure: process.env.NODE_ENV === "production", // true only in prod
-     sameSite: "strict",
-   });
-   res.clearCookie("refreshToken", {
-     path: "/",
-     httpOnly: true,
-     secure: process.env.NODE_ENV === "production",
-     sameSite: "strict",
-   });
-
+    res.clearCookie("accessToken", {
+      path: "/", // Must match cookie settings
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // true only in prod
+      sameSite: "strict",
+    });
+    res.clearCookie("refreshToken", {
+      path: "/",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
 
     return res.status(200).json({
       success: true,
@@ -404,7 +406,6 @@ export async function logout(req, res) {
     });
   }
 }
-
 
 export async function getCurrentUser(req, res) {
   try {
