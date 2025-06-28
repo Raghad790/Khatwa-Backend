@@ -1,79 +1,45 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import {
-  createUser,
-  getUserById,
-  getUserbyGoogleId,
-} from "../models/user.model.js";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-// Validate environment variables
-if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-  throw new Error("Google OAuth credentials not configured");
-}
+import { findOrCreateOAuthUser } from "../services/userService.js";
 
 passport.use(
   new GoogleStrategy(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
-      prompt: "select_account",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      scope: ["profile", "email"],
-      passReqToCallback: true, // Add this for potential future use
+      callbackURL: "http://localhost:5000/api/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        console.log(`Google auth attempt: ${profile.displayName}`);
-
-        // Validate profile has email
-        if (!profile.emails?.[0]?.value) {
-          throw new Error("No email found in Google profile");
-        }
-
-        // Try to find user by Google ID
-        let user = await getUserbyGoogleId(profile.id);
-        if (user) {
-          console.log("Existing user found:", user.email);
-          return done(null, user);
-        }
-
-        // Create new user
-        const userCreated = await createUser({
-          name: profile.displayName,
-          email: profile.emails[0].value,
-          avatar: profile.photos?.[0]?.value,
-          oauth_provider: "google",
+        const user = await findOrCreateOAuthUser({
           oauth_id: profile.id,
-          role: "student",
-          password: null,
-          isVerified: true, // Google-authenticated emails are verified
+          email: profile.emails?.[0]?.value,
+          name: profile.displayName,
+          avatar: profile.photos?.[0]?.value,
+          provider: "google",
         });
-
-        console.log("New user created:", userCreated.email);
-        return done(null, userCreated);
+        return done(null, user);
       } catch (err) {
-        console.error("GoogleStrategy error:", err.message);
-        return done(err, null);
+        console.error("GoogleStrategy error:", err);
+        return done(err, null); // ✅ 'done' must be passed in this scope
       }
     }
   )
 );
 
-// Secure session serialization
+// Serialize user to store in session
 passport.serializeUser((user, done) => {
-  done(null, user.id); // Just pass the ID!
+  done(null, user.id); // store only the user ID in the session
 });
 
+// Deserialize user on every request
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await getUserById(id);
-    if (!user) throw new Error("User not found");
+    // Import here to avoid circular dependency at top
+    const { getUserById } = await import("../models/user.model.js");
+    const user = await getUserById(id); // you must define this in your model
     done(null, user);
   } catch (err) {
-    console.error("Deserialization error:", err.message);
     done(err, null);
   }
 });

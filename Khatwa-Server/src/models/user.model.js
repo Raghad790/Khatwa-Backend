@@ -42,7 +42,7 @@ export async function updateUser(userInfo) {
   try {
     let hashedPassword = null;
     if (userInfo.password) {
-       hashedPassword = await bcrypt.hash(
+      hashedPassword = await bcrypt.hash(
         userInfo.password,
         Number(process.env.BCRYPT_SALT_ROUNDS)
       );
@@ -156,7 +156,7 @@ export async function changeUserPassword({ user_id, newPassword }) {
 export async function getUserbyGoogleId(id) {
   try {
     const googleId = await query(
-      "select email,oauth_id, name, role, avatar from users where oauth_id = $1",
+      "SELECT id, email, oauth_id, name, role, avatar FROM users WHERE oauth_id = $1",
       [id]
     );
     if (!googleId.rows[0]) {
@@ -168,7 +168,6 @@ export async function getUserbyGoogleId(id) {
     throw err;
   }
 }
-
 
 export async function getUserProfileById(userId) {
   try {
@@ -200,7 +199,6 @@ export async function getUserProfileById(userId) {
     throw err;
   }
 }
-
 
 // Update profile fields and optionally password
 export async function updateUserProfile(userId, updateData) {

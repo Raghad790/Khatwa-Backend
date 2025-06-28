@@ -6,7 +6,8 @@ import morgan from "morgan";
 import { errorHandler, notFound } from "./src/middleware/error.js";
 import session from "express-session";
 import cookieParser from "cookie-parser";
-import passport from "./src/config/passport.js";
+import passport from "passport";
+import "./src/config/passport.js";
 import rateLimit from "express-rate-limit";
 import { createResponse } from "./src/utils/helper.js";
 import categoryRouter from "./src/routes/category.Routes.js";
@@ -19,8 +20,9 @@ import moduleRouter from "./src/routes/modules.Routes.js";
 import quizRouter from "./src/routes/quize.Routes.js";
 import assignmentRouter from "./src/routes/assignment.Routes.js";
 import submissionRouter from "./src/routes/submissions.Routes.js";
-import LessonCompleterouter from "./src/routes/lessonCompletion.Routes.js"
-
+import LessonCompleterouter from "./src/routes/lessonCompletion.Routes.js";
+import adminRouter from "./src/routes/admin.Routes.js";
+import uploadRoutes from "./src/routes/upload.routes.js";
 const app = express();
 
 // Check if we're in development mode
@@ -166,7 +168,8 @@ app.use("/api", quizRouter);
 app.use("/api", assignmentRouter);
 app.use("/api", submissionRouter);
 app.use("/api", LessonCompleterouter);
-
+app.use("/api/admin", adminRouter); // Registering the admin router
+app.use("/api/upload", uploadRoutes); // Registering the upload router
 
 // 7. API documentation endpoint (optional)
 app.get("/api", (req, res) => {
@@ -189,9 +192,6 @@ app.get("/api", (req, res) => {
     },
   });
 });
-
-
-
 
 // 8. Error handling middleware (must be last)
 app.use(notFound);
