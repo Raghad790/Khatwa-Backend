@@ -13,7 +13,6 @@ import {
   Login,
   Register,
 } from "../controllers/auth.controller.js";
-import passport from "../config/passport.js";
 
 const authRouter = Router();
 
