@@ -1,9 +1,9 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import { findOrCreateOAuthUser } from "../services/userService.js";
 import {
   createUser,
   getUserById,
-  getUserByEmail,
   getUserbyGoogleId,
 } from "../models/user.model.js";
 import dotenv from "dotenv";
@@ -11,12 +11,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 // Validate environment variables
-if (
-  !process.env.GOOGLE_CLIENT_ID ||
-  !process.env.GOOGLE_CLIENT_SECRET ||
-  !process.env.GOOGLE_CALLBACK_URL
-) {
-  throw new Error("Google OAuth credentials not configured properly");
+if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+  throw new Error("Google OAuth credentials not configured");
 }
 
 // Configure Google OAuth strategy
@@ -25,74 +21,41 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
+      callbackURL: "http://localhost:5000/api/auth/google/callback",
       scope: ["profile", "email"],
-      // ✅ FIX: Removed passReqToCallback since it's not used
+      passReqToCallback: true, // Add this for potential future use
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        console.log(`🟢 Google auth attempt: ${profile.displayName}`);
-
-        const email = profile.emails?.[0]?.value;
-        if (!email) throw new Error("No email found in Google profile");
-
-        // 🔍 Look up by Google ID
-        let user = await getUserbyGoogleId(profile.id);
-
-        // If not found, try by email
-        if (!user) {
-          user = await getUserByEmail(email);
-        }
-
-        if (user) {
-          console.log("✅ Existing user found:", user.email);
-          console.log("✅ About to serialize user:", user);
-          return done(null, user);
-        }
-
-        // 🚀 Create a new user if not found
-        const newUser = await createUser({
-          name: profile.displayName,
-          email,
-          avatar: profile.photos?.[0]?.value || null,
-          oauth_provider: "google",
+        const user = await findOrCreateOAuthUser({
           oauth_id: profile.id,
-          role: "student", // default role
-          password: null,
-          isVerified: true,
+          email: profile.emails?.[0]?.value,
+          name: profile.displayName,
+          avatar: profile.photos?.[0]?.value,
+          provider: "google",
         });
-
-        console.log("🆕 New user created:", newUser.email);
-        return done(null, newUser);
+        return done(null, user);
       } catch (err) {
-        console.error("❌ GoogleStrategy error:", err.message);
-        return done(err, null);
+        console.error("GoogleStrategy error:", err);
+        return done(err, null); // ✅ 'done' must be passed in this scope
       }
     }
   )
 );
 
-// ✅ Session serialization
+// Serialize user to store in session
 passport.serializeUser((user, done) => {
-  try {
-    if (!user || !user.id) {
-      console.error("❌ Failed to serialize: User or user.id is missing", user);
-      return done(new Error("User object is missing or invalid"), null);
-    }
-    done(null, user.id);
-  } catch (err) {
-    console.error("❌ Serialization error:", err);
-    done(err, null);
-  }
+  done(null, user.id); // store only the user ID in the session
 });
 
+// Deserialize user on every request
 passport.deserializeUser(async (id, done) => {
   try {
-    const user = await getUserById(id);
-    if (!user) throw new Error("User not found");
+    // Import here to avoid circular dependency at top
+    const { getUserById } = await import("../models/user.model.js");
+    const user = await getUserById(id); // you must define this in your model
     done(null, user);
   } catch (err) {
-    console.error("❌ Deserialization error:", err.message);
     done(err, null);
   }
 });

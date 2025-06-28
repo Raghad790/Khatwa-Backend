@@ -6,7 +6,8 @@ import morgan from "morgan";
 import { errorHandler, notFound } from "./src/middleware/error.js";
 import session from "express-session";
 import cookieParser from "cookie-parser";
-import passport from "./src/config/passport.js";
+import passport from "passport";
+import "./src/config/passport.js";
 import rateLimit from "express-rate-limit";
 import { createResponse } from "./src/utils/helper.js";
 import categoryRouter from "./src/routes/category.Routes.js";
@@ -20,8 +21,8 @@ import quizRouter from "./src/routes/quize.Routes.js";
 import assignmentRouter from "./src/routes/assignment.Routes.js";
 import submissionRouter from "./src/routes/submissions.Routes.js";
 import LessonCompleterouter from "./src/routes/lessonCompletion.Routes.js";
-import adminrouter from "./src/routes/adminCourseRoutes.js";
-import adminReportsRouter from "./src/routes/adminCourseRoutes.js";
+import adminRouter from "./src/routes/admin.Routes.js";
+import uploadRoutes from "./src/routes/upload.routes.js";
 const app = express();
 
 // Check if we're in development mode
@@ -165,8 +166,8 @@ app.use("/api", quizRouter);
 app.use("/api", assignmentRouter);
 app.use("/api", submissionRouter);
 app.use("/api", LessonCompleterouter);
-app.use("/api", adminrouter);
-app.use("/api/admin/reports", adminReportsRouter);
+app.use("/api/admin", adminRouter); // Registering the admin router
+app.use("/api/upload", uploadRoutes); // Registering the upload router
 
 // 7. API documentation endpoint (optional)
 app.get("/api", (req, res) => {
@@ -188,14 +189,6 @@ app.get("/api", (req, res) => {
       submissions: "/api/submissions",
     },
   });
-});
-
-app.get("/api/session-info", (req, res) => {
-  if (req.isAuthenticated && req.isAuthenticated()) {
-    return res.json({ session: req.session, user: req.user });
-  } else {
-    return res.status(401).json({ message: "Not authenticated" });
-  }
 });
 
 // 8. Error handling middleware (must be last)
