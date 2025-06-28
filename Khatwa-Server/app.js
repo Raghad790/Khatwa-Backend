@@ -19,9 +19,9 @@ import moduleRouter from "./src/routes/modules.Routes.js";
 import quizRouter from "./src/routes/quize.Routes.js";
 import assignmentRouter from "./src/routes/assignment.Routes.js";
 import submissionRouter from "./src/routes/submissions.Routes.js";
-import LessonCompleterouter from "./src/routes/lessonCompletion.Routes.js"
+import LessonCompleterouter from "./src/routes/lessonCompletion.Routes.js";
 import adminrouter from "./src/routes/adminCourseRoutes.js";
-import adminReportsRouter from "./src/routes/adminCourseRoutes.js"
+import adminReportsRouter from "./src/routes/adminCourseRoutes.js";
 const app = express();
 
 // Check if we're in development mode
@@ -68,8 +68,6 @@ app.use(
       "Origin",
       "Cookie",
     ],
-    secure: true, // ❗ required when SameSite is None
-    sameSite: "None",
     exposedHeaders: ["Set-Cookie"],
     preflightContinue: false,
     maxAge: 3600000,
@@ -170,7 +168,6 @@ app.use("/api", LessonCompleterouter);
 app.use("/api", adminrouter);
 app.use("/api/admin/reports", adminReportsRouter);
 
-
 // 7. API documentation endpoint (optional)
 app.get("/api", (req, res) => {
   res.json({
@@ -193,8 +190,13 @@ app.get("/api", (req, res) => {
   });
 });
 
-
-
+app.get("/api/session-info", (req, res) => {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    return res.json({ session: req.session, user: req.user });
+  } else {
+    return res.status(401).json({ message: "Not authenticated" });
+  }
+});
 
 // 8. Error handling middleware (must be last)
 app.use(notFound);
